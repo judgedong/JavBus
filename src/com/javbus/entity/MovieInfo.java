@@ -26,7 +26,7 @@ public class MovieInfo {
 	/**
 	 * 演员
 	 */
-	List<String> stars;
+	List<Star> stars;
 	/**
 	 * 导演
 	 */
@@ -121,14 +121,14 @@ public class MovieInfo {
 	 * 获取演员
 	 * @return
 	 */
-	public List<String> getStars() {
+	public List<Star> getStars() {
 		return stars;
 	}
 	/**
 	 * 设置演员
 	 * @param stars
 	 */
-	public void setStars(List<String> stars) {
+	public void setStars(List<Star> stars) {
 		this.stars = stars;
 	}
 	/**

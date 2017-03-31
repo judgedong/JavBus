@@ -1,25 +1,31 @@
 package com.javbus;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-
+import com.alibaba.fastjson.JSON;
+import com.javbus.entity.Magnet;
 import com.javbus.entity.MovieInfo;
+import com.javbus.entity.Star;
 
 public class Main {
-
 	// 配置文件视频文件夹
 	static String ROOT = "F:\\____temp";
+	static String BASEURL = "https://www.javbus.com/";
 
 	String[] suffix = { ".jpg", ".png", ".avi", ".wmv", ".mp4", ".mpg", ".mpeg", ".flv", ".mkv", ".rmvb", ".mov",
 			".iso", ".nfo" };
@@ -27,25 +33,35 @@ public class Main {
 	public static void main(String[] args) throws Exception {
 		File root = new File(ROOT);
 		File[] listFiles = root.listFiles();
-		for (File file : listFiles) {
-			if (file.isFile()) {
-				String filename = file.getName();
-				String num = filename.substring(0, filename.lastIndexOf("."));
-				// getInfo(num);
-			}
-		}
-		getInfo("MIaE-015");
+//		for (File file : listFiles) {
+//			if (file.isFile()) {
+//				String filename = file.getName();
+//				String num = filename.substring(0, filename.lastIndexOf("."));
+//				// getInfo(num);
+//			}
+//		}
+		MovieInfo info = getInfo("MIaE-015");
+		moveMovie(info);
+		System.out.println(JSON.toJSONString(info));
+		
+		
 	}
-
-	public static void getInfo(String num) throws Exception {
+	/**
+	 * 根据番号获取信息
+	 * @param num
+	 * @return
+	 * @throws Exception
+	 */
+	public static MovieInfo getInfo(String num) throws Exception {
+		
+		num = num.toUpperCase();
 		MovieInfo movie = new MovieInfo();
-		String baseurl = "https://www.javbus.com/";
+		
 		Document doc;
 		try {
-			doc = Jsoup.connect(baseurl + num).get();
+			doc = Jsoup.connect(BASEURL + num).get();
 
 			String title = doc.select("h3").text();
-			System.out.println(title);
 			// 封面
 			Elements mainimg = doc.select(".bigImage");
 			movie.setCover(mainimg.first().attr("href"));
@@ -101,43 +117,37 @@ public class Main {
 			movie.setGenres(genres);
 
 			// 演员
-			List<String> stars = new ArrayList<>();
+			List<Star> stars = new ArrayList<>();
 			Elements star = infos.select("span[onmouseover]");
+			
 			for (Element element : star) {
-				stars.add(element.text());
+				stars.add(getStarInfo(element.select("a").attr("href")));
 				title = title.replaceAll(element.text(), "");
 			}
+			
 			movie.setStars(stars);
 			movie.setTitle(title.trim());
 
-			System.out.println(movie);
-			// System.out.println(info);
-			
-			
-			//获取磁力链接
-			Elements e = doc.getElementsByTag("script").eq(8);
-			Map<String, String> jsParams = getJsParams(e);
-			String url = "https://www.javbus.com/ajax/uncledatoolsbyajax.php";
-			Connection con = Jsoup.connect(url);
-			con.data(jsParams);
-			con.header("referer", baseurl + num);
-			Document document = con.get();
-			
-			// 磁力链接
-			Elements Magnets = document.select("a[title=滑鼠右鍵點擊並選擇【複製連結網址】]");
-			System.out.println(document);
-			for (int j = 0; j < Magnets.size(); j++) {
-				if (j%3==0) {
-					System.out.println(Magnets.get(j).text());
-					
-				}
-			}
-
+			//磁链信息
+			List<Magnet> magnets = getMagnets(doc,num);
+			movie.setMagnet(magnets);
+			return movie;
 		} catch (HttpStatusException e) {
 			System.out.println(num + "不存在");
 		}
+		return null;
 	}
-
+	
+	
+	
+	
+	
+	
+	/**
+	 * 解析<script>标签获取var的参数
+	 * @param e
+	 * @return
+	 */
 	public static Map<String, String> getJsParams(Elements e) {
 		/* 用來封裝要保存的参数 */
 		Map<String, String> map = new HashMap<String, String>();
@@ -167,5 +177,173 @@ public class Main {
 		}
 		map.put("lang", "zh");
 		return map;
+	}
+	
+	/**
+	 * 解析磁力链接
+	 * @param document
+	 * @return 
+	 * @throws IOException 
+	 */
+	public static List<Magnet> getMagnets(Document doc,String num) throws IOException {
+		List<Magnet> magnetList = new ArrayList<>();
+
+		Elements e = doc.getElementsByTag("script").eq(8);
+		Map<String, String> jsParams = getJsParams(e);
+		String url = "https://www.javbus.com/ajax/uncledatoolsbyajax.php";
+		Connection con = Jsoup.connect(url);
+		con.data(jsParams);
+		con.header("referer", BASEURL + num);
+		Document document = con.get();
+		// 磁力链接
+		Elements magnets = document.select("a");
+		
+		Magnet magnet = new Magnet();
+		boolean skip = false;
+		int index = 0;
+		
+		for (int i = 0; i < magnets.size(); i++) {
+			if (!"高清".equals(magnets.get(i).text())) {
+				switch (index) {
+				case 0:
+					magnet.setMagnetTitle(magnets.get(i).text());
+					index++;
+					break;
+				case 1:
+					magnet.setMagnetSize(magnets.get(i).text());
+					index++;
+					break;
+				case 2:
+					magnet.setMagnetData(magnets.get(i).text());
+					
+					index=0;
+					//补全缺少的值
+					magnet.setMagnetNum(num);
+					String magnetsUrl = magnets.get(i).attr("href");
+					magnet.setMagnetUrl(magnetsUrl.substring(0,magnetsUrl.lastIndexOf("&")));
+					//存起来
+					magnetList.add(magnet);
+					
+					//重置magnet对象
+					magnet=new Magnet();
+					break;
+				default:
+					System.out.println(index);
+					break;
+				}
+			}else {
+				magnet.setIsHD(true);
+			}
+		}
+		return magnetList;
+	}
+	/**
+	 * 获取演员信息...
+	 * @param StarUrl
+	 * @return 
+	 * @throws IOException 
+	 */
+	public static Star getStarInfo(String StarUrl) throws IOException {
+		Star star = new Star();
+		
+		Document document = Jsoup.connect(StarUrl).get();
+		
+		Elements img = document.select(".avatar-box > .photo-frame img");
+		
+		star.setImage(img.attr("src"));
+		
+		Elements select = document.select(".avatar-box .photo-info > *");
+		for (Element element : select) {
+			if ("span".equals(element.tagName())) {
+				star.setName(element.text());
+			} else {
+				String[] split = element.text().split(": ");
+				switch (split[0]) {
+				case "生日":
+					star.setBirthday(split[1]);
+					break;
+				case "年齡":
+					star.setAge(split[1]);
+					break;
+				case "身高":
+					star.setHeight(split[1]);
+					break;
+				case "罩杯":
+					star.setCup(split[1]);
+					break;
+				case "胸圍":
+					star.setBust(split[1]);
+					break;
+				case "腰圍":
+					star.setWaist(split[1]);
+					break;
+				case "臀圍":
+					star.setHips(split[1]);
+					break;
+				case "出生地":
+					star.setHometown(split[1]);
+					break;
+				case "愛好":
+					star.setHometown(split[1]);
+					break;
+				default:
+					System.err.println(StarUrl+":");
+					System.err.println("意料之外的参数:"+element.text());
+					break;
+				}
+			}
+		}
+		return star;
+	}
+	
+	/**
+	 * 下载文件
+	 * @param urlString 下载的链接
+	 * @param filename	保存的文件名
+	 * @param savePath	保存的位置
+	 * @throws Exception
+	 */
+	public static void download(String urlString, String filename, String savePath) throws Exception {
+		// 构造URL
+		URL url = new URL(urlString);
+		// 打开连接
+		URLConnection con = url.openConnection();
+		// 设置请求超时为5s
+		con.setConnectTimeout(5 * 1000);
+		// 输入流
+		InputStream is = con.getInputStream();
+
+		// 1K的数据缓冲
+		byte[] bs = new byte[1024];
+		// 读取到的数据长度
+		int len;
+		// 输出的文件流
+		File sf = new File(savePath);
+		if (!sf.exists()) {
+			sf.mkdirs();
+		}
+		OutputStream os = new FileOutputStream(sf.getPath() + "\\" + filename);
+		// 开始读取
+		while ((len = is.read(bs)) != -1) {
+			os.write(bs, 0, len);
+		}
+		// 完毕，关闭所有链接
+		os.close();
+		is.close();
+		System.out.println(savePath+"\\"+filename+"保存成功");
+	}
+	
+	/**
+	 * 移动文件,构建文件夹,下载图片
+	 * @param info
+	 * @throws Exception 
+	 */
+	public static void moveMovie(MovieInfo info) throws Exception {
+		List<String> previews = info.getPreviews();
+		for (int i = 0; i < previews.size(); i++) {
+			String previewUrl = previews.get(i);
+			String suffix = previewUrl.substring(previewUrl.lastIndexOf("."),previewUrl.length());
+			download(previews.get(i), info.getTitle()+(previews.get(i)).hashCode()+suffix, "f://img");
+		}
 	}
 }
