@@ -60,7 +60,7 @@ public class MovieInfo {
 	/**
 	 * 磁力链接
 	 */
-	List<String> magnet;
+	List<Magnet> magnet;
 	/**
 	 * 获取番号
 	 * @return
@@ -219,14 +219,14 @@ public class MovieInfo {
 	 * 获取磁力链接
 	 * @return
 	 */
-	public List<String> getMagnet() {
+	public List<Magnet> getMagnet() {
 		return magnet;
 	}
 	/**
 	 * 设置磁力链接
 	 * @param magnet
 	 */
-	public void setMagnet(List<String> magnet) {
+	public void setMagnet(List<Magnet> magnet) {
 		this.magnet = magnet;
 	}
 	/**

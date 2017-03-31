@@ -3,6 +3,7 @@ package com.javbus;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -121,14 +122,15 @@ public class Main {
 			con.data(jsParams);
 			con.header("referer", baseurl + num);
 			Document document = con.get();
-			System.out.println(document);
-			//https://www.javbus.com/ajax/uncledatoolsbyajax.php?gid=33073102193&img=https://pics.javbus.com/cover/5t7a_b.jpg&uc=0&lang=zh
 			
-			System.out.println(jsParams);
 			// ¥≈¡¶¡¥Ω”
-			Elements elements = doc.select("tr");
-			for (Element element : elements) {
-				//System.out.println(element.html());
+			Elements Magnets = document.select("a[title=ª¨ Û”“ÊI¸cìÙÅKﬂxìÒ°æ—}—uﬂBΩYæW÷∑°ø]");
+			System.out.println(document);
+			for (int j = 0; j < Magnets.size(); j++) {
+				if (j%3==0) {
+					System.out.println(Magnets.get(j).text());
+					
+				}
 			}
 
 		} catch (HttpStatusException e) {
