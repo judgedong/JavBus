@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.commons.io.FileUtils;
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
@@ -33,16 +35,19 @@ public class Main {
 	public static void main(String[] args) throws Exception {
 		File root = new File(ROOT);
 		File[] listFiles = root.listFiles();
-//		for (File file : listFiles) {
-//			if (file.isFile()) {
-//				String filename = file.getName();
-//				String num = filename.substring(0, filename.lastIndexOf("."));
-//				// getInfo(num);
-//			}
-//		}
-		MovieInfo info = getInfo("MIaE-015");
-		moveMovie(info);
-		System.out.println(JSON.toJSONString(info));
+		for (File file : listFiles) {
+			if (file.isFile()) {
+				String filename = file.getName();
+				String num = filename.substring(0, filename.lastIndexOf("."));
+				MovieInfo info = getInfo(num);
+				if (null!=info) {
+					System.out.println(JSON.toJSONString(info));
+					moveMovie(info,file);
+				}
+			}
+		}
+		//MovieInfo info = getInfo("MIaE-015");
+		//System.out.println(JSON.toJSONString(info));
 		
 		
 	}
@@ -220,7 +225,7 @@ public class Main {
 					//补全缺少的值
 					magnet.setMagnetNum(num);
 					String magnetsUrl = magnets.get(i).attr("href");
-					magnet.setMagnetUrl(magnetsUrl.substring(0,magnetsUrl.lastIndexOf("&")));
+					magnet.setMagnetUrl(magnetsUrl.substring(0,(magnetsUrl.lastIndexOf("&")==-1)?magnetsUrl.length():magnetsUrl.lastIndexOf("&")));
 					//存起来
 					magnetList.add(magnet);
 					
@@ -310,6 +315,7 @@ public class Main {
 		URLConnection con = url.openConnection();
 		// 设置请求超时为5s
 		con.setConnectTimeout(5 * 1000);
+		con.setRequestProperty("User-agent","Mozilla/4.0");
 		// 输入流
 		InputStream is = con.getInputStream();
 
@@ -330,7 +336,6 @@ public class Main {
 		// 完毕，关闭所有链接
 		os.close();
 		is.close();
-		System.out.println(savePath+"\\"+filename+"保存成功");
 	}
 	
 	/**
@@ -338,12 +343,77 @@ public class Main {
 	 * @param info
 	 * @throws Exception 
 	 */
-	public static void moveMovie(MovieInfo info) throws Exception {
+	public static void moveMovie(MovieInfo info,File file) throws Exception {
+		
+		String suffix = file.getName().substring(file.getName().lastIndexOf("."), file.getName().length());
+		
+		//有码,无码
+		String censored = info.getCensored().replaceAll(":", "");
+		StringBuffer starsSb = new StringBuffer();
+		List<Star> stars = info.getStars();
+		for (Star star : stars) {
+			starsSb.append(star.getName()+",");
+		}
+		//演员名,多个
+		String starsStr = starsSb.substring(0, starsSb.length()-1).replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		//发行日期
+		String release = info.getRelease().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		//获取番号
+		String num = info.getNum().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		//封面url
+		String cover = info.getCover();
+		//预览图
 		List<String> previews = info.getPreviews();
-		for (int i = 0; i < previews.size(); i++) {
-			String previewUrl = previews.get(i);
-			String suffix = previewUrl.substring(previewUrl.lastIndexOf("."),previewUrl.length());
-			download(previews.get(i), info.getTitle()+(previews.get(i)).hashCode()+suffix, "f://img");
+		//磁力链接
+		List<Magnet> magnets = info.getMagnet();
+		//影片标题
+		String title = info.getTitle().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		
+		//拼接路径
+		String newFilePath = ROOT+"/"+censored+"/"+starsStr+"/["+release+"]("+num+")"+starsStr+"-"+title+"/";
+		String newFileName  = "["+release+"]("+num+")"+starsStr+"-"+title;
+		//创建文件夹
+		if (!new File(newFilePath).exists()) {
+			new File(newFilePath).mkdirs();
+		}
+		//复制影片
+		file.renameTo(new File(newFilePath+newFileName+suffix));
+		System.out.println("文件拷贝完成");
+		
+		try {
+			//下载封面
+			download(cover, "Cover" + cover.substring(cover.lastIndexOf("."), cover.length()), newFilePath);
+			System.out.println("封面下载完成");
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.err.println("封面下载失败");
+		}
+		try {
+			//下载预览图
+			for (int i = 0; i < previews.size(); i++) {
+				download(previews.get(i),
+						newFileName + "." + i
+								+ previews.get(i).substring(previews.get(i).lastIndexOf("."), previews.get(i).length()),
+						newFilePath);
+			} 
+			System.out.println("预览图下载完成");
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.err.println("预览图下载失败");
+		}
+		try {
+			File magnetText = new File(newFilePath + newFileName + ".txt");
+			for (int i = 0; i < magnets.size(); i++) {
+				Magnet magnet = magnets.get(i);
+				String magnetinfo = magnet.getMagnetUrl() + "\t" + magnet.getMagnetSize() + "\t"
+						+ magnet.getMagnetData() + "\t" + (magnet.getIsHD() ? "高清" : "\t") + "\t"
+						+ magnet.getMagnetTitle() + "\n";
+				FileUtils.writeStringToFile(magnetText, magnetinfo, "utf-8", true);
+			} 
+			System.out.println("磁链保存完成");
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.err.println("磁链保存失败");
 		}
 	}
 }

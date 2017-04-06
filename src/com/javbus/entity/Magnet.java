@@ -12,11 +12,11 @@ public class Magnet {
 	//关联番号
 	String MagnetNum;
 	//是否高清
-	Boolean isHD;
-	public Boolean getIsHD() {
+	boolean isHD;
+	public boolean getIsHD() {
 		return isHD;
 	}
-	public void setIsHD(Boolean isHD) {
+	public void setIsHD(boolean isHD) {
 		this.isHD = isHD;
 	}
 	public String getMagnetUrl() {
