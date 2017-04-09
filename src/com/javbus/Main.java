@@ -7,11 +7,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.io.FileUtils;
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
@@ -24,6 +26,10 @@ import com.javbus.entity.Magnet;
 import com.javbus.entity.MovieInfo;
 import com.javbus.entity.Star;
 
+import it.sauronsoftware.jave.Encoder;
+import it.sauronsoftware.jave.MultimediaInfo;
+import utils.C3P0Utils;
+
 public class Main {
 	// 配置文件视频文件夹
 	static String ROOT = "F:\\____temp";
@@ -33,16 +39,24 @@ public class Main {
 			".iso", ".nfo" };
 
 	public static void main(String[] args) throws Exception {
+		Encoder encoder = new Encoder();
+
 		File root = new File(ROOT);
 		File[] listFiles = root.listFiles();
 		for (File file : listFiles) {
 			if (file.isFile()) {
 				String filename = file.getName();
 				String num = filename.substring(0, filename.lastIndexOf("."));
+				long l = System.currentTimeMillis();
 				MovieInfo info = getInfo(num);
 				if (null!=info) {
-					System.out.println(JSON.toJSONString(info));
-					moveMovie(info,file);
+					MultimediaInfo m = encoder.getInfo(file);
+					System.out.println("获取文件信息完成,用时"+(System.currentTimeMillis()-l)+"毫秒");
+
+					//System.out.println(JSON.toJSONString(info));
+					
+					saveMovieInfo(info,file,m);
+					moveMovie(info,file,m);
 				}
 			}
 		}
@@ -343,7 +357,7 @@ public class Main {
 	 * @param info
 	 * @throws Exception 
 	 */
-	public static void moveMovie(MovieInfo info,File file) throws Exception {
+	public static void moveMovie(MovieInfo info,File file,MultimediaInfo m) throws Exception {
 		
 		String suffix = file.getName().substring(file.getName().lastIndexOf("."), file.getName().length());
 		
@@ -355,11 +369,11 @@ public class Main {
 			starsSb.append(star.getName()+",");
 		}
 		//演员名,多个
-		String starsStr = starsSb.substring(0, starsSb.length()-1).replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		String starsStr = starsSb.length()>0?starsSb.substring(0, starsSb.length()-1).replaceAll(":", "").replaceAll(" ", "").replaceAll("\\\\", ""):"";
 		//发行日期
-		String release = info.getRelease().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		String release = info.getRelease().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\\\", "");
 		//获取番号
-		String num = info.getNum().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		String num = info.getNum().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\\\", "");
 		//封面url
 		String cover = info.getCover();
 		//预览图
@@ -367,28 +381,40 @@ public class Main {
 		//磁力链接
 		List<Magnet> magnets = info.getMagnet();
 		//影片标题
-		String title = info.getTitle().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\", "");
+		String title = info.getTitle().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\\\", "");
+		//分辨率信息
+		int height = m.getVideo().getSize().getHeight();
+		//演员太多,不能显示
+		if (starsStr.length()>=30) {
+			starsStr="群星";
+		}
 		
 		//拼接路径
-		String newFilePath = ROOT+"/"+censored+"/"+starsStr+"/["+release+"]("+num+")"+starsStr+"-"+title+"/";
+		String newFilePath = "F:/不可描述"+"/"+censored+"/"+height+"P/"+starsStr+"/["+release+"]("+num+")"+starsStr+"-"+title+"/";
 		String newFileName  = "["+release+"]("+num+")"+starsStr+"-"+title;
 		//创建文件夹
 		if (!new File(newFilePath).exists()) {
 			new File(newFilePath).mkdirs();
 		}
+		long l = System.currentTimeMillis();
 		//复制影片
-		file.renameTo(new File(newFilePath+newFileName+suffix));
-		System.out.println("文件拷贝完成");
+		boolean b = file.renameTo(new File(newFilePath+newFileName+suffix));
+		if (!b) {
+			FileUtils.moveFile(file, new File(newFilePath+newFileName+suffix));
+		}	
+		System.out.println("文件拷贝完成,用时"+(System.currentTimeMillis()-l)+"毫秒");
 		
 		try {
+			l = System.currentTimeMillis();
 			//下载封面
 			download(cover, "Cover" + cover.substring(cover.lastIndexOf("."), cover.length()), newFilePath);
-			System.out.println("封面下载完成");
+			System.out.println("封面下载完成,用时"+(System.currentTimeMillis()-l)+"毫秒");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.err.println("封面下载失败");
 		}
 		try {
+			l = System.currentTimeMillis();
 			//下载预览图
 			for (int i = 0; i < previews.size(); i++) {
 				download(previews.get(i),
@@ -396,12 +422,13 @@ public class Main {
 								+ previews.get(i).substring(previews.get(i).lastIndexOf("."), previews.get(i).length()),
 						newFilePath);
 			} 
-			System.out.println("预览图下载完成");
+			System.out.println("预览图下载完成,用时"+(System.currentTimeMillis()-l)+"毫秒");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.err.println("预览图下载失败");
 		}
 		try {
+			l = System.currentTimeMillis();
 			File magnetText = new File(newFilePath + newFileName + ".txt");
 			for (int i = 0; i < magnets.size(); i++) {
 				Magnet magnet = magnets.get(i);
@@ -410,10 +437,56 @@ public class Main {
 						+ magnet.getMagnetTitle() + "\n";
 				FileUtils.writeStringToFile(magnetText, magnetinfo, "utf-8", true);
 			} 
-			System.out.println("磁链保存完成");
+			System.out.println("磁链保存完成,用时"+(System.currentTimeMillis()-l)+"毫秒");
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.err.println("磁链保存失败");
 		}
+	}
+	/**
+	 * 数据保存到数据库
+	 * @param movieinfo
+	 * @param fileinfo
+	 * @throws Exception 
+	 */
+	public static void saveMovieInfo(MovieInfo movieinfo,File file ,MultimediaInfo fileinfo) throws Exception {
+		QueryRunner runner = new QueryRunner(C3P0Utils.getDataSource());
+		StringBuffer Genres = new StringBuffer();
+		for (String string : movieinfo.getGenres()) {
+			Genres.append(string+",");
+		}
+		StringBuffer stars = new StringBuffer();
+		for (Star star : movieinfo.getStars()) {
+			stars.append(star.getName()+",");
+		}
+		StringBuffer magnets = new StringBuffer();
+		for (Magnet magnet : movieinfo.getMagnet()) {
+			magnets.append(magnet.getMagnetUrl()+",");
+		}
+		StringBuffer previews = new StringBuffer();
+		for (String string : movieinfo.getPreviews()) {
+			previews.append("<img src=''"+string+"''>");
+		}
+		String sql = "REPLACE INTO JavBus VALUES ('"
+				+movieinfo.getNum().toUpperCase().replaceAll(" ", "")+"', '"
+				+movieinfo.getTitle().replaceAll(" ", "")+"', '"
+				+movieinfo.getCensored().replaceAll(" ", "")+"', '"
+				+movieinfo.getRelease().replaceAll(" ", "")+"', '"
+				+movieinfo.getRunTime().replaceAll(" ", "")+"', '"
+				+stars+"', '"
+				+movieinfo.getDirector()+"',' "
+				+movieinfo.getStudio().replaceAll(" ", "")+"',' "
+				+movieinfo.getLabel()+"','"
+				+Genres+"',' <img src=''"
+				+movieinfo.getCover()+"''>', '"
+				+previews+"','"
+				+movieinfo.getSeries()+"', '"
+				+magnets+"','"
+				+fileinfo.getDuration()/60000+"分鐘',' "
+				+fileinfo.getFormat()+"',' "
+				+fileinfo.getVideo().getSize().getWidth()+"',' "
+				+fileinfo.getVideo().getSize().getHeight()+"',' "
+				+(float)(Math.round(Double.valueOf(file.length())/1024/1024/1024*100))/100+"GB','"+System.currentTimeMillis()+"')";
+		runner.update(sql);
 	}
 }

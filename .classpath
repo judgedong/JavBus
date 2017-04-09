@@ -5,5 +5,10 @@
 	<classpathentry kind="lib" path="lib/jsoup-1.10.2.jar"/>
 	<classpathentry kind="lib" path="lib/fastjson-1.2.30.jar"/>
 	<classpathentry kind="lib" path="lib/commons-io-2.5.jar"/>
+	<classpathentry kind="lib" path="lib/jave-1.0.2.jar"/>
+	<classpathentry kind="lib" path="lib/c3p0-0.9.5.2.jar"/>
+	<classpathentry kind="lib" path="lib/commons-dbutils-1.6.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-java-5.1.41-bin.jar"/>
+	<classpathentry kind="lib" path="lib/mchange-commons-java-0.2.12.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
