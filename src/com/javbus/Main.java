@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,7 +20,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import com.alibaba.fastjson.JSON;
 import com.javbus.entity.Magnet;
 import com.javbus.entity.MovieInfo;
 import com.javbus.entity.Star;
@@ -50,6 +48,7 @@ public class Main {
 				long l = System.currentTimeMillis();
 				MovieInfo info = getInfo(num);
 				if (null!=info) {
+					System.out.println(num);
 					MultimediaInfo m = encoder.getInfo(file);
 					System.out.println("获取文件信息完成,用时"+(System.currentTimeMillis()-l)+"毫秒");
 
@@ -139,9 +138,13 @@ public class Main {
 			List<Star> stars = new ArrayList<>();
 			Elements star = infos.select("span[onmouseover]");
 			
-			for (Element element : star) {
-				stars.add(getStarInfo(element.select("a").attr("href")));
-				title = title.replaceAll(element.text(), "");
+			try {
+				for (Element element : star) {
+					stars.add(getStarInfo(element.select("a").attr("href")));
+					title = title.replaceAll(element.text(), "");
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
 			
 			movie.setStars(stars);
@@ -381,9 +384,12 @@ public class Main {
 		//磁力链接
 		List<Magnet> magnets = info.getMagnet();
 		//影片标题
-		String title = info.getTitle().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\\\", "");
+		String title = info.getTitle().replaceAll(":", "").replaceAll(" ", "").replaceAll("\\\\", "").replaceAll(":", "：").replaceAll("\\*", "");
 		//分辨率信息
-		int height = m.getVideo().getSize().getHeight();
+		int height = 0;
+		if (null!=m.getVideo()&&null!=m.getVideo().getSize()) {
+			height = m.getVideo().getSize().getHeight();
+		}
 		//演员太多,不能显示
 		if (starsStr.length()>=30) {
 			starsStr="群星";
@@ -465,7 +471,13 @@ public class Main {
 		}
 		StringBuffer previews = new StringBuffer();
 		for (String string : movieinfo.getPreviews()) {
-			previews.append("<img src=''"+string+"''>");
+			previews.append("<img src=''"+string+"''><br>");
+		}
+		int height = 0;
+		int width = 0;
+		if (null!=fileinfo.getVideo()&&null!=fileinfo.getVideo().getSize()) {
+			width = fileinfo.getVideo().getSize().getWidth();
+			height = fileinfo.getVideo().getSize().getHeight();
 		}
 		String sql = "REPLACE INTO JavBus VALUES ('"
 				+movieinfo.getNum().toUpperCase().replaceAll(" ", "")+"', '"
@@ -475,7 +487,7 @@ public class Main {
 				+movieinfo.getRunTime().replaceAll(" ", "")+"', '"
 				+stars+"', '"
 				+movieinfo.getDirector()+"',' "
-				+movieinfo.getStudio().replaceAll(" ", "")+"',' "
+				+movieinfo.getStudio()+"".replaceAll(" ", "")+"',' "
 				+movieinfo.getLabel()+"','"
 				+Genres+"',' <img src=''"
 				+movieinfo.getCover()+"''>', '"
@@ -484,8 +496,8 @@ public class Main {
 				+magnets+"','"
 				+fileinfo.getDuration()/60000+"分鐘',' "
 				+fileinfo.getFormat()+"',' "
-				+fileinfo.getVideo().getSize().getWidth()+"',' "
-				+fileinfo.getVideo().getSize().getHeight()+"',' "
+				+width+"',' "
+				+height+"',' "
 				+(float)(Math.round(Double.valueOf(file.length())/1024/1024/1024*100))/100+"GB','"+System.currentTimeMillis()+"')";
 		runner.update(sql);
 	}
