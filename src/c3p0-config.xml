@@ -2,7 +2,7 @@
 <c3p0-config>
 	<default-config>
 		<property name="jdbcUrl">
-			jdbc:mysql://kuro.cat:3306/File
+			jdbc:mysql://127.0.0.1:3306/File
 		</property>
 		<property name="driverClass">com.mysql.jdbc.Driver</property>
 		<property name="user">root</property>
